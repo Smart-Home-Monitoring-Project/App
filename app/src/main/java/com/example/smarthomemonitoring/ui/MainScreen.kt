@@ -1,11 +1,12 @@
 package com.example.smarthomemonitoring.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -17,13 +18,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.Box
 
 @Composable
 fun MainScreen() {
 
     var currentScreen by remember {
-        mutableStateOf<AppScreen>(AppScreen.Dashboard)
+        mutableStateOf<AppScreen>(
+            AppScreen.Dashboard
+        )
     }
 
     Scaffold(
@@ -34,16 +36,21 @@ fun MainScreen() {
 
                 NavigationBarItem(
                     selected =
-                        currentScreen == AppScreen.Dashboard,
+                        currentScreen ==
+                                AppScreen.Dashboard,
 
                     onClick = {
-                        currentScreen = AppScreen.Dashboard
+                        currentScreen =
+                            AppScreen.Dashboard
                     },
 
                     icon = {
+
                         Icon(
-                            imageVector = Icons.Default.Home,
-                            contentDescription = "Dashboard"
+                            imageVector =
+                                Icons.Default.Home,
+                            contentDescription =
+                                "Dashboard"
                         )
                     },
 
@@ -54,16 +61,21 @@ fun MainScreen() {
 
                 NavigationBarItem(
                     selected =
-                        currentScreen == AppScreen.Devices,
+                        currentScreen ==
+                                AppScreen.Devices,
 
                     onClick = {
-                        currentScreen = AppScreen.Devices
+                        currentScreen =
+                            AppScreen.Devices
                     },
 
                     icon = {
+
                         Icon(
-                            imageVector = Icons.Default.Devices,
-                            contentDescription = "Devices"
+                            imageVector =
+                                Icons.Default.Devices,
+                            contentDescription =
+                                "Devices"
                         )
                     },
 
@@ -74,13 +86,16 @@ fun MainScreen() {
 
                 NavigationBarItem(
                     selected =
-                        currentScreen == AppScreen.Notifications,
+                        currentScreen ==
+                                AppScreen.Notifications,
 
                     onClick = {
-                        currentScreen = AppScreen.Notifications
+                        currentScreen =
+                            AppScreen.Notifications
                     },
 
                     icon = {
+
                         Icon(
                             imageVector =
                                 Icons.Default.Notifications,
@@ -96,16 +111,21 @@ fun MainScreen() {
 
                 NavigationBarItem(
                     selected =
-                        currentScreen == AppScreen.Activity,
+                        currentScreen ==
+                                AppScreen.Activity,
 
                     onClick = {
-                        currentScreen = AppScreen.Activity
+                        currentScreen =
+                            AppScreen.Activity
                     },
 
                     icon = {
+
                         Icon(
-                            imageVector = Icons.Default.List,
-                            contentDescription = "Activity"
+                            imageVector =
+                                Icons.Default.List,
+                            contentDescription =
+                                "Activity"
                         )
                     },
 
@@ -123,38 +143,61 @@ fun MainScreen() {
             AppScreen.Dashboard -> {
 
                 DashboardScreen(
-                    modifier = Modifier
-                        .padding(paddingValues)
+                    modifier =
+                        Modifier.padding(
+                            paddingValues
+                        ),
+
+                    onOpenFloorPlan = {
+
+                        currentScreen =
+                            AppScreen.FloorPlan
+                    }
                 )
             }
 
             AppScreen.Devices -> {
 
                 Box(
-                    modifier = Modifier
-                        .padding(paddingValues)
+                    modifier =
+                        Modifier.padding(
+                            paddingValues
+                        )
                 ) {
 
                     HomeScreen()
                 }
             }
 
+            AppScreen.FloorPlan -> {
+
+                FloorPlanScreen(
+                    modifier =
+                        Modifier.padding(
+                            paddingValues
+                        )
+                )
+            }
+
             AppScreen.Notifications -> {
 
                 NotificationsScreen(
-                    modifier = Modifier
-                        .padding(paddingValues)
+                    modifier =
+                        Modifier.padding(
+                            paddingValues
+                        )
                 )
             }
 
             AppScreen.Activity -> {
 
                 ActivityScreen(
-                    modifier = Modifier
-                        .padding(paddingValues)
+                    modifier =
+                        Modifier.padding(
+                            paddingValues
+                        )
                 )
             }
         }
     }
 }
-

@@ -15,6 +15,11 @@ sealed class AppScreen(
         title = "Devices"
     )
 
+    data object FloorPlan : AppScreen(
+        route = "floor_plan",
+        title = "Floor Plan"
+    )
+
     data object Notifications : AppScreen(
         route = "notifications",
         title = "Notifications"

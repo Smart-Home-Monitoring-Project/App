@@ -33,7 +33,9 @@ import com.google.firebase.database.ValueEventListener
 
 @Composable
 fun DashboardScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenFloorPlan: () -> Unit = {},
+    onOpenSettings: () -> Unit = {}
 ) {
 
     var stats by remember {
@@ -50,6 +52,9 @@ fun DashboardScreen(
 
     LaunchedEffect(Unit) {
 
+        /*
+         * Read house name.
+         */
         FirebaseRepository.houseReference
             .child("info")
             .child("name")
@@ -59,7 +64,6 @@ fun DashboardScreen(
                     override fun onDataChange(
                         snapshot: DataSnapshot
                     ) {
-
                         houseName =
                             snapshot.getValue(String::class.java)
                                 ?: "Smart Home"
@@ -72,6 +76,9 @@ fun DashboardScreen(
                 }
             )
 
+        /*
+         * Listen to all floors and devices.
+         */
         FirebaseRepository.floorsReference
             .addValueEventListener(
                 object : ValueEventListener {
@@ -85,6 +92,59 @@ fun DashboardScreen(
                         var totalRooms = 0
                         var currentPower = 0
 
+                        /*
+                         * Main circuit breaker state.
+                         *
+                         * r4-breaker is the master breaker
+                         * for the whole house.
+                         */
+                        var mainBreakerOn = true
+
+                        /*
+                         * First find the main breaker.
+                         */
+                        for (floorSnapshot in snapshot.children) {
+
+                            val roomsSnapshot =
+                                floorSnapshot.child("rooms")
+
+                            for (roomSnapshot in roomsSnapshot.children) {
+
+                                val devicesSnapshot =
+                                    roomSnapshot.child("devices")
+
+                                for (deviceSnapshot in devicesSnapshot.children) {
+
+                                    val deviceId =
+                                        deviceSnapshot.key ?: ""
+
+                                    val deviceType =
+                                        deviceSnapshot
+                                            .child("type")
+                                            .getValue(String::class.java)
+                                            ?: ""
+
+                                    if (
+                                        deviceId == "r4-breaker" ||
+                                        deviceType == "main_breaker"
+                                    ) {
+
+                                        val breakerStatus =
+                                            deviceSnapshot
+                                                .child("status")
+                                                .getValue(String::class.java)
+                                                ?: "OFF"
+
+                                        mainBreakerOn =
+                                            breakerStatus.uppercase() == "ON"
+                                    }
+                                }
+                            }
+                        }
+
+                        /*
+                         * Now calculate the dashboard values.
+                         */
                         for (floorSnapshot in snapshot.children) {
 
                             val roomsSnapshot =
@@ -98,6 +158,26 @@ fun DashboardScreen(
                                     roomSnapshot.child("devices")
 
                                 for (deviceSnapshot in devicesSnapshot.children) {
+
+                                    val deviceId =
+                                        deviceSnapshot.key ?: ""
+
+                                    val type =
+                                        deviceSnapshot
+                                            .child("type")
+                                            .getValue(String::class.java)
+                                            ?: ""
+
+                                    /*
+                                     * Main breaker itself is not counted
+                                     * as a normal household device.
+                                     */
+                                    if (
+                                        deviceId == "r4-breaker" ||
+                                        type == "main_breaker"
+                                    ) {
+                                        continue
+                                    }
 
                                     totalDevices++
 
@@ -113,14 +193,39 @@ fun DashboardScreen(
                                             .getValue(Int::class.java)
                                             ?: 0
 
-                                    if (status == "ON") {
+                                    /*
+                                     * If the main breaker is OFF,
+                                     * the whole house has no active
+                                     * powered devices and consumes 0 W.
+                                     */
+                                    if (mainBreakerOn) {
 
-                                        activeDevices++
+                                        if (status.uppercase() == "ON") {
 
-                                        currentPower += power
+                                            activeDevices++
+
+                                            /*
+                                             * Multi-switch is a controller.
+                                             * Its own 8 W controller value is
+                                             * not counted as appliance usage.
+                                             */
+                                            if (type != "multi_switch") {
+                                                currentPower += power
+                                            }
+                                        }
                                     }
                                 }
                             }
+                        }
+
+                        /*
+                         * Explicitly force zero when the main
+                         * circuit breaker is OFF.
+                         */
+                        if (!mainBreakerOn) {
+
+                            activeDevices = 0
+                            currentPower = 0
                         }
 
                         stats =
@@ -216,8 +321,7 @@ fun DashboardScreen(
                     )
 
                     Text(
-                        text =
-                            "${stats.currentPowerWatts} W",
+                        text = "${stats.currentPowerWatts} W",
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -243,18 +347,14 @@ fun DashboardScreen(
 
                 StatisticCard(
                     title = "Devices",
-                    value =
-                        stats.totalDevices.toString(),
-                    modifier =
-                        Modifier.weight(1f)
+                    value = stats.totalDevices.toString(),
+                    modifier = Modifier.weight(1f)
                 )
 
                 StatisticCard(
                     title = "Active",
-                    value =
-                        stats.activeDevices.toString(),
-                    modifier =
-                        Modifier.weight(1f)
+                    value = stats.activeDevices.toString(),
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -272,11 +372,9 @@ fun DashboardScreen(
             ) {
 
                 StatisticCard(
-                    title = "Rooms",
-                    value =
-                        stats.totalRooms.toString(),
-                    modifier =
-                        Modifier.weight(1f)
+                    title = "Locations",
+                    value = stats.totalRooms.toString(),
+                    modifier = Modifier.weight(1f)
                 )
 
                 StatisticCard(
@@ -286,8 +384,7 @@ fun DashboardScreen(
                                 stats.totalDevices -
                                         stats.activeDevices
                                 ).toString(),
-                    modifier =
-                        Modifier.weight(1f)
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -343,6 +440,19 @@ fun DashboardScreen(
             Spacer(
                 modifier = Modifier.height(20.dp)
             )
+        }
+
+        /*
+         * Floor plan button.
+         */
+        item {
+
+            androidx.compose.material3.Button(
+                onClick = onOpenFloorPlan,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("VIEW FLOOR PLANS")
+            }
         }
     }
 }

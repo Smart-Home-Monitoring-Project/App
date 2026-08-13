@@ -9,9 +9,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -30,7 +33,7 @@ import com.google.firebase.database.ValueEventListener
 
 @Composable
 fun SettingsScreen(
-    modifier: Modifier = Modifier
+    onBack: () -> Unit
 ) {
 
     var notificationsEnabled by remember {
@@ -41,24 +44,16 @@ fun SettingsScreen(
         mutableStateOf(true)
     }
 
-    var isSaving by remember {
-        mutableStateOf(false)
-    }
-
     var errorMessage by remember {
-        mutableStateOf("")
+        mutableStateOf<String?>(null)
     }
 
     /*
-     * Listen to:
-     *
-     * houses/house1/settings/notifications/enabled
-     *
-     * This means the screen stays synchronized with Firebase.
+     * Read notification setting from Firebase.
      */
     DisposableEffect(Unit) {
 
-        val notificationsReference =
+        val reference =
             FirebaseRepository.houseReference
                 .child("settings")
                 .child("notifications")
@@ -76,7 +71,6 @@ fun SettingsScreen(
                             ?: true
 
                     isLoading = false
-                    errorMessage = ""
                 }
 
                 override fun onCancelled(
@@ -86,33 +80,44 @@ fun SettingsScreen(
                     isLoading = false
 
                     errorMessage =
-                        error.message
+                        "Unable to read settings: ${error.message}"
                 }
             }
 
-        notificationsReference
-            .addValueEventListener(listener)
+        reference.addValueEventListener(listener)
 
         onDispose {
-
-            notificationsReference
-                .removeEventListener(listener)
+            reference.removeEventListener(listener)
         }
     }
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .padding(20.dp),
-        verticalArrangement =
-            Arrangement.Top
+            .padding(16.dp)
     ) {
 
-        Text(
-            text = "Settings",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
+        /*
+         * Header
+         */
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            TextButton(
+                onClick = onBack
+            ) {
+                Text("← Back")
+            }
+
+            Text(
+                text = "Settings",
+                modifier = Modifier.weight(1f),
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
 
         Spacer(
             modifier = Modifier.height(20.dp)
@@ -122,51 +127,37 @@ fun SettingsScreen(
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment =
-                    Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
                 CircularProgressIndicator()
 
                 Spacer(
-                    modifier = Modifier.height(10.dp)
+                    modifier = Modifier.height(12.dp)
                 )
 
-                Text(
-                    text = "Loading settings..."
-                )
+                Text("Loading settings...")
             }
 
         } else {
 
-            if (errorMessage.isNotEmpty()) {
-
-                Text(
-                    text = "Unable to load settings",
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(
-                    modifier = Modifier.height(6.dp)
-                )
-
-                Text(
-                    text = errorMessage
-                )
-
-                Spacer(
-                    modifier = Modifier.height(16.dp)
-                )
-            }
-
+            /*
+             * Notifications
+             */
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor =
+                        MaterialTheme.colorScheme.surfaceVariant
+                )
             ) {
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(18.dp),
+                    horizontalArrangement =
+                        Arrangement.SpaceBetween,
                     verticalAlignment =
                         Alignment.CenterVertically
                 ) {
@@ -182,25 +173,15 @@ fun SettingsScreen(
                         )
 
                         Spacer(
-                            modifier = Modifier.height(5.dp)
-                        )
-
-                        Text(
-                            text =
-                                "Receive safety and important device alerts.",
-                            fontSize = 14.sp
-                        )
-
-                        Spacer(
-                            modifier = Modifier.height(5.dp)
+                            modifier = Modifier.height(4.dp)
                         )
 
                         Text(
                             text =
                                 if (notificationsEnabled) {
-                                    "Notifications are enabled"
+                                    "Safety and home alerts are enabled."
                                 } else {
-                                    "Notifications are disabled"
+                                    "Safety and home alerts are disabled."
                                 },
                             fontSize = 13.sp
                         )
@@ -208,58 +189,111 @@ fun SettingsScreen(
 
                     Switch(
                         checked = notificationsEnabled,
-                        enabled = !isSaving,
-                        onCheckedChange = { newValue ->
+                        onCheckedChange = { enabled ->
 
-                            notificationsEnabled =
-                                newValue
+                            notificationsEnabled = enabled
 
-                            isSaving = true
-                            errorMessage = ""
-
-                            FirebaseRepository.houseReference
+                            FirebaseRepository
+                                .houseReference
                                 .child("settings")
                                 .child("notifications")
                                 .child("enabled")
-                                .setValue(newValue)
-                                .addOnCompleteListener {
-
-                                    isSaving = false
-                                }
-                                .addOnFailureListener { error ->
-
-                                    isSaving = false
-
-                                    errorMessage =
-                                        error.message
-                                            ?: "Unable to save setting"
-                                }
+                                .setValue(enabled)
                         }
                     )
                 }
             }
 
-            if (isSaving) {
+            Spacer(
+                modifier = Modifier.height(20.dp)
+            )
 
-                Spacer(
-                    modifier = Modifier.height(12.dp)
-                )
+            /*
+             * Firebase information
+             */
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
 
-                Text(
-                    text = "Saving..."
-                )
+                Column(
+                    modifier = Modifier.padding(18.dp)
+                ) {
+
+                    Text(
+                        text = "Connection",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(
+                        modifier = Modifier.height(6.dp)
+                    )
+
+                    Text(
+                        text = "Firebase",
+                        fontSize = 14.sp
+                    )
+
+                    Text(
+                        text =
+                            "Connected to the shared smart-home database.",
+                        fontSize = 13.sp
+                    )
+                }
             }
 
-            if (errorMessage.isNotEmpty()) {
+            Spacer(
+                modifier = Modifier.height(20.dp)
+            )
 
-                Spacer(
-                    modifier = Modifier.height(12.dp)
-                )
+            /*
+             * Application information
+             */
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
 
-                Text(
-                    text = errorMessage
-                )
+                Column(
+                    modifier = Modifier.padding(18.dp)
+                ) {
+
+                    Text(
+                        text = "About",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(
+                        modifier = Modifier.height(6.dp)
+                    )
+
+                    Text(
+                        text = "Smart Home Monitoring",
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Text(
+                        text = "Mobile application for smart-home monitoring and control.",
+                        fontSize = 13.sp
+                    )
+                }
             }
+        }
+
+        /*
+         * Error message
+         */
+        errorMessage?.let { message ->
+
+            Spacer(
+                modifier = Modifier.height(16.dp)
+            )
+
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 13.sp
+            )
         }
     }
 }
