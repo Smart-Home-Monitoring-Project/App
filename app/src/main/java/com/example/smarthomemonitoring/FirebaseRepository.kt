@@ -28,15 +28,18 @@ object FirebaseRepository {
 
 
     /**
-     * Change a normal device status and create an activity log.
+     * Change a normal device status.
      *
-     * Example:
+     * IMPORTANT:
+     * This Android function ONLY changes the device state.
      *
-     * OFF -> ON
+     * Activity logs are NOT created here.
      *
-     * Firebase path:
+     * The backend is responsible for creating activity logs
+     * when it detects the state change in Firebase.
      *
-     * houses/house1/floors/{floorId}/rooms/{roomId}/devices/{deviceId}/status
+     * The existing function name is kept so HomeScreen.kt
+     * does not need to be changed.
      */
     fun setDeviceStatusAndLog(
         floorId: String,
@@ -63,7 +66,7 @@ object FirebaseRepository {
                         .getValue(String::class.java)
                         ?: "OFF"
 
-                // Nothing to do if status did not change.
+                // Nothing to do if the status has not changed.
                 if (oldStatus == newStatus) {
                     return@addOnSuccessListener
                 }
@@ -71,21 +74,18 @@ object FirebaseRepository {
                 val currentTime =
                     System.currentTimeMillis()
 
-                val turnedOnAt =
-                    snapshot
-                        .child("turnedOnAt")
-                        .getValue(Long::class.java)
-
                 val updates =
                     mutableMapOf<String, Any?>()
 
                 val base =
                     "houses/house1/floors/$floorId/rooms/$roomId/devices/$deviceId"
 
+
                 /*
                  * Update device status.
                  */
                 updates["$base/status"] = newStatus
+
 
                 /*
                  * Device turned ON.
@@ -96,61 +96,38 @@ object FirebaseRepository {
                         currentTime
                 }
 
+
                 /*
                  * Device turned OFF.
+                 *
+                 * Keep the timing information because it can
+                 * be used by the backend for logging/reporting.
                  */
-                var durationSeconds: Long? = null
+                if (newStatus == "OFF") {
 
-                if (
-                    newStatus == "OFF" &&
-                    turnedOnAt != null &&
-                    turnedOnAt > 0L
-                ) {
+                    val turnedOnAt =
+                        snapshot
+                            .child("turnedOnAt")
+                            .getValue(Long::class.java)
 
-                    durationSeconds =
-                        ((currentTime - turnedOnAt) / 1000L)
-                            .coerceAtLeast(0L)
+                    if (
+                        turnedOnAt != null &&
+                        turnedOnAt > 0L
+                    ) {
 
-                    updates["$base/turnedOnAt"] =
-                        null
+                        updates["$base/turnedOnAt"] =
+                            null
 
-                    updates["$base/turnedOffAt"] =
-                        currentTime
+                        updates["$base/turnedOffAt"] =
+                            currentTime
+                    }
                 }
 
-                /*
-                 * Create activity log.
-                 */
-                val logKey =
-                    logsReference
-                        .push()
-                        .key
-                        ?: return@addOnSuccessListener
-
-                val logData =
-                    mutableMapOf<String, Any>(
-                        "deviceId" to deviceId,
-                        "deviceName" to deviceName,
-                        "floorId" to floorId,
-                        "fromStatus" to oldStatus,
-                        "houseId" to "house1",
-                        "roomId" to roomId,
-                        "timestamp" to currentTime,
-                        "toStatus" to newStatus
-                    )
-
-                if (durationSeconds != null) {
-
-                    logData["durationSeconds"] =
-                        durationSeconds
-                }
-
-                updates[
-                    "houses/house1/logs/$logKey"
-                ] = logData
 
                 /*
-                 * Perform everything together.
+                 * Write only the device state.
+                 *
+                 * NO Activity log is created here.
                  */
                 database
                     .reference
@@ -162,14 +139,15 @@ object FirebaseRepository {
     /**
      * Control one individual switch inside a multi-switch unit.
      *
-     * Example:
+     * Android updates:
      *
-     * switch-1 -> r5-ceiling
-     * switch-2 -> r5-stove
-     * switch-3 -> r5-outlet
+     * 1. Individual switch status
+     * 2. Controlled device status
+     * 3. Parent multi-switch status
      *
-     * Both the switch status and the controlled device status
-     * are updated together.
+     * Activity logging is NOT performed here.
+     *
+     * The backend is responsible for creating the activity log.
      */
     fun setMultiSwitchState(
         floorId: String,
@@ -195,6 +173,7 @@ object FirebaseRepository {
                 deviceId = controlledDeviceId
             )
 
+
         /*
          * Read the multi-switch.
          */
@@ -203,7 +182,7 @@ object FirebaseRepository {
             .addOnSuccessListener { multiSnapshot ->
 
                 /*
-                 * Read the device controlled by the switch.
+                 * Read the controlled device.
                  */
                 targetDeviceReference
                     .get()
@@ -223,6 +202,7 @@ object FirebaseRepository {
                                 .getValue(String::class.java)
                                 ?: "OFF"
 
+
                         /*
                          * Nothing changed.
                          */
@@ -233,11 +213,13 @@ object FirebaseRepository {
                             return@addOnSuccessListener
                         }
 
+
                         val currentTime =
                             System.currentTimeMillis()
 
                         val updates =
                             mutableMapOf<String, Any?>()
+
 
                         val multiBase =
                             "houses/house1/floors/$floorId/rooms/$roomId/devices/$multiSwitchId"
@@ -263,7 +245,7 @@ object FirebaseRepository {
 
 
                         /*
-                         * Save ON time.
+                         * Save ON time for the controlled device.
                          */
                         if (newStatus == "ON") {
 
@@ -274,7 +256,7 @@ object FirebaseRepository {
 
 
                         /*
-                         * Save OFF time.
+                         * Save OFF time for the controlled device.
                          */
                         if (newStatus == "OFF") {
 
@@ -300,17 +282,16 @@ object FirebaseRepository {
 
 
                         /*
-                         * Update the parent multi-switch status.
+                         * Update parent multi-switch status.
                          *
-                         * If at least one switch is ON,
-                         * the multi-switch is considered ON.
+                         * If at least one individual switch is ON,
+                         * the parent multi-switch is considered ON.
                          */
                         var anySwitchOn =
                             false
 
                         for (
-                        child
-                        in multiSnapshot
+                        child in multiSnapshot
                             .child("switches")
                             .children
                         ) {
@@ -341,6 +322,7 @@ object FirebaseRepository {
                             }
                         }
 
+
                         updates[
                             "$multiBase/status"
                         ] =
@@ -352,73 +334,17 @@ object FirebaseRepository {
 
 
                         /*
-                         * Create activity log for the
-                         * actual controlled device.
+                         * IMPORTANT:
+                         *
+                         * No Activity log is created here.
+                         *
+                         * The backend should detect the Firebase
+                         * state change and create the single log.
                          */
-                        val logKey =
-                            logsReference
-                                .push()
-                                .key
-
-                        if (
-                            logKey != null &&
-                            oldTargetStatus != newStatus
-                        ) {
-
-                            val targetName =
-                                targetSnapshot
-                                    .child("name")
-                                    .getValue(String::class.java)
-                                    ?: switchName
-
-                            val logData =
-                                mutableMapOf<String, Any>(
-                                    "deviceId" to controlledDeviceId,
-                                    "deviceName" to targetName,
-                                    "floorId" to floorId,
-                                    "fromStatus" to oldTargetStatus,
-                                    "houseId" to "house1",
-                                    "roomId" to roomId,
-                                    "timestamp" to currentTime,
-                                    "toStatus" to newStatus,
-                                    "controlSource" to
-                                            "$multiSwitchId/$switchId"
-                                )
-
-                            /*
-                             * Calculate duration when turned OFF.
-                             */
-                            if (newStatus == "OFF") {
-
-                                val targetTurnedOnAt =
-                                    targetSnapshot
-                                        .child("turnedOnAt")
-                                        .getValue(Long::class.java)
-
-                                if (
-                                    targetTurnedOnAt != null &&
-                                    targetTurnedOnAt > 0L
-                                ) {
-
-                                    logData[
-                                        "durationSeconds"
-                                    ] =
-                                        (
-                                                (currentTime - targetTurnedOnAt) /
-                                                        1000L
-                                                )
-                                            .coerceAtLeast(0L)
-                                }
-                            }
-
-                            updates[
-                                "houses/house1/logs/$logKey"
-                            ] = logData
-                        }
 
 
                         /*
-                         * Write all changes together.
+                         * Write all state changes together.
                          */
                         database
                             .reference
