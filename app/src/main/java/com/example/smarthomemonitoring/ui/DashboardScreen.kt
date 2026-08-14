@@ -205,13 +205,13 @@ fun DashboardScreen(
                                             activeDevices++
 
                                             /*
-                                             * Multi-switch is a controller.
-                                             * Its own 8 W controller value is
-                                             * not counted as appliance usage.
+                                             * Count the powerDrawWatts value of every
+                                             * powered device, including the multi-switch.
+                                             *
+                                             * This keeps Android's power calculation
+                                             * consistent with the hardware simulator.
                                              */
-                                            if (type != "multi_switch") {
-                                                currentPower += power
-                                            }
+                                            currentPower += power
                                         }
                                     }
                                 }
